@@ -1,16 +1,12 @@
-name: Confluence DC with PostgreSQL and License Test
+name: Confluence DC with PostgreSQL and License Page Test
 
 on:
   push:
   workflow_dispatch:
 
 jobs:
-  confluence-server:
-    name: Start Confluence + PostgreSQL
+  test-license-page:
     runs-on: ubuntu-latest
-
-    outputs:
-      base-url: http://localhost:8090
 
     services:
       postgres:
@@ -28,6 +24,9 @@ jobs:
           --health-retries=5
 
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
 
@@ -37,7 +36,7 @@ jobs:
       - name: Create Docker Network
         run: docker network create confluence-net
 
-      - name: Connect Postgres to Network
+      - name: Connect Postgres to Docker Network
         run: docker network connect confluence-net ${{ job.services.postgres.id }}
 
       - name: Start Confluence Container
@@ -58,29 +57,33 @@ jobs:
           echo "Waiting for Confluence startup..."
           sleep 150
 
-  test-license-setup:
-    name: Run License Setup Test
-    runs-on: ubuntu-latest
-    needs: confluence-server
-
-    steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
       - name: Install NPM Dependencies
-        run: npm ci
+        run: |
+          npm init -y
+          npm install --save-dev playwright
 
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      - name: Run License Setup Playwright Test
+      - name: Create and Run Inline Playwright Test
         env:
-          BASE_URL: http://localhost:8090
-          LICENSE_KEY: ${{ secrets.CONFLUENCE_LICENSE_KEY }}
+          BASE_URL: http://localhost:8090    
         run: |
-          npx playwright test tests/setup-license.spec.ts
+          mkdir -p tests
+          cat > tests/license-check.spec.ts <<'EOF'
+          import { test } from '@playwright/test';
+
+          test('Set up Confluence license', async ({ page }) => {
+            const baseURL = process.env.BASE_URL!;
+            const licenseKey = process.env.LICENSE_KEY!;
+
+            await page.goto(`${baseURL}/setup/setuplicense.action`);
+
+            if (page.url().includes('/setup/setuplicense.action')) {
+              await page.waitForSelector('textarea[name="confLicenseString"]', { state: 'visible' });
+              console.log
