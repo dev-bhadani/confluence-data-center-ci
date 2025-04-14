@@ -73,18 +73,20 @@ jobs:
       - name: 🎭 Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      - name: 🧪 Run Inline License Page Test
+      - name: 🧪 Run Inline License Page Test (JS)
         env:
           BASE_URL: http://localhost:8090
           LICENSE_KEY: dummy-placeholder-license-key
         run: |
           mkdir -p tests
-          cat > tests/license-check.spec.ts <<'EOF'
-          import { test } from '@playwright/test';
+          cat > tests/license-check.spec.js <<'EOF'
+          const { chromium } = require('playwright');
 
-          test('Set up Confluence license', async ({ page }) => {
-            const baseURL = process.env.BASE_URL!;
-            const licenseKey = process.env.LICENSE_KEY!;
+          (async () => {
+            const baseURL = process.env.BASE_URL;
+            const licenseKey = process.env.LICENSE_KEY;
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
 
             await page.goto(`${baseURL}/setup/setuplicense.action`);
 
@@ -94,7 +96,10 @@ jobs:
             } else {
               console.log('License page not shown, skipping.');
             }
-          });
+
+            await browser.close();
+          })();
           EOF
 
-          npx playwright test tests/license-check.spec.ts
+          node tests/license-check.spec.js
+
