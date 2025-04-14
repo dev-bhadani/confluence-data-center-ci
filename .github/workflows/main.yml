@@ -43,7 +43,7 @@ jobs:
             -e ATL_JDBC_USER=confluenceuser \
             -e ATL_JDBC_PASSWORD=confluencepass \
             -e ATL_DB_DRIVER=org.postgresql.Driver \
-            atlassian/confluence-data-center:latest
+            atlassian/confluence:9.4-jdk21
 
       - name: Wait for Confluence to start
         run: |
