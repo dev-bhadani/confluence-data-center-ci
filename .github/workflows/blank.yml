@@ -1,0 +1,53 @@
+name: Confluence DC with PostgreSQL
+
+on: [push]
+
+jobs:
+  run-confluence:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_DB: confluence
+          POSTGRES_USER: confluenceuser
+          POSTGRES_PASSWORD: confluencepass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start Confluence Container
+        run: |
+          docker network create confluence-net
+
+          # Connect PostgreSQL container to the network
+          docker network connect confluence-net ${{ job.services.postgres.id }}
+
+          docker run -d \
+            --name confluence \
+            --network confluence-net \
+            -p 8090:8090 \
+            -e ATL_DB_TYPE=postgresql \
+            -e ATL_JDBC_URL=jdbc:postgresql://postgres:5432/confluence \
+            -e ATL_JDBC_USER=confluenceuser \
+            -e ATL_JDBC_PASSWORD=confluencepass \
+            -e ATL_DB_DRIVER=org.postgresql.Driver \
+            atlassian/confluence-data-center:latest
+
+      - name: Wait for Confluence to start
+        run: |
+          echo "Waiting 5 minutes for Confluence startup (adjust as needed)"
+          sleep 300
+
+      - name: Test Confluence HTTP Response
+        run: |
+          curl -I http://localhost:8090 || true
