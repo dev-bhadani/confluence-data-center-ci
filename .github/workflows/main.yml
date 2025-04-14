@@ -5,7 +5,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-license-page:
+  confluence-license-test:
+    name: Confluence Setup & Test
     runs-on: ubuntu-latest
 
     services:
@@ -24,22 +25,22 @@ jobs:
           --health-retries=5
 
     steps:
-      - name: Checkout Repository
+      # === Stage 1: Setup Docker and Pull Confluence ===
+      - name: 📦 Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Set up Docker
+      - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Pull Confluence Image
+      - name: 🧲 Pull Confluence Image
         run: docker pull atlassian/confluence:9.4-jdk21
 
-      - name: Create Docker Network
-        run: docker network create confluence-net
+      - name: 🌐 Create Network and Connect Postgres
+        run: |
+          docker network create confluence-net
+          docker network connect confluence-net ${{ job.services.postgres.id }}
 
-      - name: Connect Postgres to Docker Network
-        run: docker network connect confluence-net ${{ job.services.postgres.id }}
-
-      - name: Start Confluence Container
+      - name: 🚀 Start Confluence Container
         run: |
           docker run -d \
             --name confluence \
@@ -52,27 +53,30 @@ jobs:
             -e ATL_DB_DRIVER=org.postgresql.Driver \
             atlassian/confluence:9.4-jdk21
 
-      - name: Wait for Confluence to Start
+      # === Stage 2: Wait for Startup ===
+      - name: ⏳ Wait for Confluence to Start
         run: |
-          echo "Waiting for Confluence startup..."
+          echo "Giving Confluence 2.5 minutes to boot..."
           sleep 150
 
-      - name: Set up Node.js
+      # === Stage 3: Playwright Test ===
+      - name: 🔧 Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
-      - name: Install NPM Dependencies
+      - name: 📦 Install NPM + Playwright
         run: |
           npm init -y
           npm install --save-dev playwright
 
-      - name: Install Playwright Browsers
+      - name: 🎭 Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      - name: Create and Run Inline Playwright Test
+      - name: 🧪 Run Inline License Page Test
         env:
-          BASE_URL: http://localhost:8090    
+          BASE_URL: http://localhost:8090
+          LICENSE_KEY: dummy-placeholder-license-key
         run: |
           mkdir -p tests
           cat > tests/license-check.spec.ts <<'EOF'
@@ -86,4 +90,11 @@ jobs:
 
             if (page.url().includes('/setup/setuplicense.action')) {
               await page.waitForSelector('textarea[name="confLicenseString"]', { state: 'visible' });
-              console.log
+              console.log('License Page loaded successful.');
+            } else {
+              console.log('License page not shown, skipping.');
+            }
+          });
+          EOF
+
+          npx playwright test tests/license-check.spec.ts
