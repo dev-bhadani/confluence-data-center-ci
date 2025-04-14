@@ -27,7 +27,7 @@ jobs:
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
 
-      # Optional: Log in to Docker Hub to avoid rate limits
+      # Optional: Docker Hub Auth
       # - name: Docker Login
       #   run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
@@ -53,11 +53,22 @@ jobs:
             -e ATL_DB_DRIVER=org.postgresql.Driver \
             atlassian/confluence:9.4-jdk21
 
-      - name: Wait for Confluence to Start
+      - name: Wait for Confluence to Start (initial delay)
         run: |
-          echo "Waiting 5 minutes for Confluence startup (adjust if needed)"
-          sleep 300
+          echo "Waiting 2 minutes before beginning health check..."
+          sleep 120
 
-      - name: Test Confluence HTTP Response
+      - name: Confluence Health Check (retry for 5 minutes)
         run: |
-          curl -I http://localhost:8090 || true
+          echo "Checking Confluence readiness..."
+          for i in {1..10}; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8090)
+            echo "Attempt $i - HTTP Status: $status"
+            if [[ "$status" == "200" || "$status" == "302" ]]; then
+              echo "Confluence is up!"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "Confluence did not become ready in time"
+          exit 1
