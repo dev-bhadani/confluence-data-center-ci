@@ -104,7 +104,7 @@ jobs:
           node tests/license-check.spec.js
 
       - name: 📤 Upload Screenshot Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: confluence-license-page
           path: license-page.png
