@@ -93,13 +93,18 @@ jobs:
             if (page.url().includes('/setup/setuplicense.action')) {
               await page.waitForSelector('textarea[name="confLicenseString"]', { state: 'visible' });
               console.log('License Page loaded successful.');
+              await page.screenshot({ path: 'license-page.png', fullPage: true });
+              console.log('Screenshot saved: license-page.png');
             } else {
               console.log('License page not shown, skipping.');
             }
-
             await browser.close();
           })();
           EOF
-
           node tests/license-check.spec.js
 
+      - name: 📤 Upload Screenshot Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: confluence-license-page
+          path: license-page.png
